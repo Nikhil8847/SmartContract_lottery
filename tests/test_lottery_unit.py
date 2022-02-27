@@ -82,8 +82,8 @@ def test_can_pick_winner_correctly():
     get_contract("vrf_coordinator").callBackWithRandomness(
         request_id, STATIC_RNG, lottery.address, {"from": account}
     )
-    starting_balance_of_account = account.balance
-    balance_of_lottery = lottery.balance
+    starting_balance_of_account = account.balance()
+    balance_of_lottery = lottery.balance()
     assert lottery.recentWinner() == account
     assert lottery.balance() == 0
-    assert account.balance == starting_balance_of_account + balance_of_lottery
+    assert account.balance() == starting_balance_of_account + balance_of_lottery
