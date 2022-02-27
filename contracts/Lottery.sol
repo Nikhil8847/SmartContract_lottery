@@ -7,9 +7,9 @@ import "@chainlink/contracts/src/v0.6/VRFConsumerBase.sol";
 
 contract Lottery is VRFConsumerBase, Ownable {
     address payable[] public players;
-    uint256 public usdEntryFee;
-    uint256 randomness;
     address payable public recentWinner;
+    uint256 public randomness;
+    uint256 public usdEntryFee;
     AggregatorV3Interface internal ethUsdPriceFeed;
     enum LOTTERY_STATE {
         OPEN,
@@ -18,36 +18,40 @@ contract Lottery is VRFConsumerBase, Ownable {
     }
     LOTTERY_STATE public lottery_state;
     uint256 public fee;
-    bytes32 public keyHash;
-    event ReqestedRandomness(bytes32 requestId);
+    bytes32 public keyhash;
+    event RequestedRandomness(bytes32 requestId);
 
-
+    // 0
+    // 1
+    // 2
 
     constructor(
         address _priceFeedAddress,
-        address _vrfcoordinator,
+        address _vrfCoordinator,
         address _link,
         uint256 _fee,
-        bytes32 _keyHash
-    ) public VRFConsumerBase(_vrfcoordinator, _link) {
+        bytes32 _keyhash
+    ) public VRFConsumerBase(_vrfCoordinator, _link) {
         usdEntryFee = 50 * (10**18);
         ethUsdPriceFeed = AggregatorV3Interface(_priceFeedAddress);
         lottery_state = LOTTERY_STATE.CLOSED;
         fee = _fee;
-        keyHash = _keyHash;
+        keyhash = _keyhash;
     }
 
     function enter() public payable {
-        // 50$ minimum entrancefee
+        // $50 minimum
         require(lottery_state == LOTTERY_STATE.OPEN);
-        require(msg.value >= getEntranceFee(), "Not Enough Ether!");
+        require(msg.value >= getEntranceFee(), "Not enough ETH!");
         players.push(msg.sender);
     }
 
     function getEntranceFee() public view returns (uint256) {
         (, int256 price, , , ) = ethUsdPriceFeed.latestRoundData();
-        uint256 adjustedPrice = uint256(price) * 10**10;
-
+        uint256 adjustedPrice = uint256(price) * 10**10; // 18 decimals
+        // $50, $2,000 / ETH
+        // 50/2,000
+        // 50 * 100000 / 2000
         uint256 costToEnter = (usdEntryFee * 10**18) / adjustedPrice;
         return costToEnter;
     }
@@ -61,20 +65,19 @@ contract Lottery is VRFConsumerBase, Ownable {
     }
 
     function endLottery() public onlyOwner {
-        // lottery_state = LOTTERY_STATE.cALCULATING_WINNER;
         // uint256(
-        //     keccak256(
+        //     keccack256(
         //         abi.encodePacked(
-        //             none,
-        //             msg.sender,
-        //             block.difficulty,
-        //             block.timestamp
+        //             nonce, // nonce is preditable (aka, transaction number)
+        //             msg.sender, // msg.sender is predictable
+        //             block.difficulty, // can actually be manipulated by the miners!
+        //             block.timestamp // timestamp is predictable
         //         )
         //     )
         // ) % players.length;
         lottery_state = LOTTERY_STATE.CALCULATING_WINNER;
-        bytes32 requestId = requestRandomness(keyHash, fee);
-        emit ReqestedRandomness(requestId);
+        bytes32 requestId = requestRandomness(keyhash, fee);
+        emit RequestedRandomness(requestId);
     }
 
     function fulfillRandomness(bytes32 _requestId, uint256 _randomness)
@@ -85,13 +88,11 @@ contract Lottery is VRFConsumerBase, Ownable {
             lottery_state == LOTTERY_STATE.CALCULATING_WINNER,
             "You aren't there yet!"
         );
-        require(_randomness > 0, "Random-not-found!");
+        require(_randomness > 0, "random-not-found");
         uint256 indexOfWinner = _randomness % players.length;
-
         recentWinner = players[indexOfWinner];
         recentWinner.transfer(address(this).balance);
-
-        //Reset
+        // Reset
         players = new address payable[](0);
         lottery_state = LOTTERY_STATE.CLOSED;
         randomness = _randomness;
